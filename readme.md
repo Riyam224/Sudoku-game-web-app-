@@ -99,10 +99,6 @@ You can host it free on:
 
 ## 👩‍💻 Author
 
-Built with 💜 by **[Your Name]**
+Built with 💜 by *Riyam *
 
-```
 
----
-
-Do you want me to also **add step-by-step instructions** in the README for publishing it on **GitHub Pages** (so anyone who clones the repo can easily deploy)?
