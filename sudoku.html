@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Sudoku Journey</title>
+   <style>
+      :root {
+         /* Light Mode Colors */
+         --bg: #ffffff;
+         --text: #333;
+         --primary: #7e57c2;
+         --primary-dark: #5e35b1;
+         --cell-bg: #f8f6ff;
+         --prefilled: #e1bee7;
+         --correct: #c8e6c9;
+         --error: #ffcdd2;
+      }
+
+      body.dark {
+         /* Dark Mode Colors */
+         --bg: #1c1b29;
+         --text: #f0e9ff;
+         --primary: #9575cd;
+         --primary-dark: #7e57c2;
+         --cell-bg: #2a273f;
+         --prefilled: #6a1b9a;
+         --correct: #66bb6a;
+         --error: #ef5350;
+      }
+
+      body {
+         display: flex;
+         flex-direction: column;
+         align-items: center;
+         justify-content: center;
+         min-height: 100vh;
+         background: var(--bg);
+         font-family: 'Segoe UI', sans-serif;
+         margin: 0;
+         color: var(--text);
+         transition: background 0.3s, color 0.3s;
+      }
+
+      h1 {
+         margin-bottom: 20px;
+         color: var(--primary);
+      }
+
+      .controls {
+         margin-bottom: 15px;
+      }
+
+      select,
+      button {
+         padding: 10px 15px;
+         border: 1px solid #ccc;
+         border-radius: 6px;
+         margin: 5px;
+         font-weight: bold;
+         cursor: pointer;
+         transition: background 0.3s, color 0.3s;
+      }
+
+      select {
+         background: var(--cell-bg);
+         color: var(--text);
+      }
+
+      button {
+         background: var(--primary);
+         color: white;
+      }
+
+      button:hover {
+         background: var(--primary-dark);
+      }
+
+      #toggleMode {
+         position: fixed;
+         top: 10px;
+         right: 10px;
+         padding: 8px 12px;
+         border-radius: 8px;
+         background: var(--primary);
+         color: white;
+         border: none;
+      }
+
+      .sudoku {
+         display: grid;
+         grid-template-columns: repeat(9, 50px);
+         grid-template-rows: repeat(9, 50px);
+         border: 3px solid black;
+         margin-bottom: 20px;
+         transition: border 0.3s;
+      }
+
+      .cell {
+         display: flex;
+         justify-content: center;
+         align-items: center;
+         border: 1px solid #666;
+         /* 👈 ensures all cells have visible borders */
+         background: var(--cell-bg);
+         font-size: 20px;
+         font-weight: bold;
+      }
+
+      .cell input {
+         width: 100%;
+         height: 100%;
+         text-align: center;
+         border: none;
+         background: transparent;
+         font-size: 20px;
+         font-weight: bold;
+         color: var(--primary-dark);
+         outline: none;
+      }
+
+      .prefilled {
+         background: var(--prefilled);
+         color: white;
+      }
+
+      /* Thicker 3×3 block lines */
+      .cell:nth-child(3n) {
+         border-right: 3px solid black;
+      }
+
+      .cell:nth-child(9n+1) {
+         border-left: 3px solid black;
+      }
+
+      .cell:nth-child(n+1):nth-child(-n+9) {
+         border-top: 3px solid black;
+      }
+
+      .cell:nth-child(n+73):nth-child(-n+81) {
+         border-bottom: 3px solid black;
+      }
+
+      .cell:nth-child(27n+1),
+      .cell:nth-child(27n+2),
+      .cell:nth-child(27n+3),
+      .cell:nth-child(27n+4),
+      .cell:nth-child(27n+5),
+      .cell:nth-child(27n+6),
+      .cell:nth-child(27n+7),
+      .cell:nth-child(27n+8),
+      .cell:nth-child(27n+9) {
+         border-top: 3px solid black;
+      }
+
+      /* Celebration overlay */
+      #celebration {
+         position: fixed;
+         top: 0;
+         left: 0;
+         width: 100%;
+         height: 100%;
+         display: none;
+         justify-content: center;
+         align-items: center;
+         background: rgba(255, 255, 255, 0.9);
+         flex-direction: column;
+         z-index: 100;
+      }
+
+      body.dark #celebration {
+         background: rgba(28, 27, 41, 0.9);
+      }
+
+      #celebration h2 {
+         font-size: 2em;
+         color: var(--primary-dark);
+         margin-bottom: 20px;
+      }
+   </style>
+</head>
+
+<body>
+
+   <button id="toggleMode" onclick="toggleDarkMode()">🌙 Dark</button>
+
+   <h1>💜 Sudoku Journey</h1>
+
+   <div class="controls">
+      <button onclick="startSingleGame()">Play Single Game</button>
+      <button onclick="startJourney()">Enter Journey</button>
+      <br>
+      <label>Choose Level:</label>
+      <select id="difficulty">
+         <option value="easy">Easy</option>
+         <option value="medium">Medium</option>
+         <option value="hard">Hard</option>
+         <option value="expert">Expert</option>
+      </select>
+   </div>
+
+   <div class="sudoku" id="sudoku-board"></div>
+   <p id="errorCount">Errors: 0 / 3</p>
+
+   <!-- Celebration screen -->
+   <div id="celebration">
+      <h2>🎉 Congrats! You Won 🎉</h2>
+      <button onclick="nextGame()">Play Another Game</button>
+      <button onclick="endJourney()">Exit Journey</button>
+   </div>
+
+   <script>
+      const boardElement = document.getElementById("sudoku-board");
+      let solutionBoard = [];
+      let errorCounter = 0;
+      let journeyMode = false;
+      let journeyLevel = "easy";
+      let journeyProgress = 0;
+
+      const puzzles = {
+         easy: ["53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79"],
+         medium: ["6.....8.1.4..6..3.18.9......4..7..2.8...5...9.2..4..6......2.38.5..3..1.9.1.....4"],
+         hard: ["1..9.7..3.9..3..6.3..6.5.9....4...6.7..9..5.4...2....8.2.3..6.1..5..8.2..7.4..9.."],
+         expert: ["..3.2.6..9..3.5..1..18.64..81.29..7......8......67..82.26..95..8..2.3..9..5.1.3.."]
+      };
+
+      const solutions = {
+         easy: ["534678912672195348198342567859761423426853791713924856961537284287419635345286179"],
+         medium: ["692347851547168239183925764364791528871652493925834617416279385258413976739586142"],
+         hard: ["152967843894231765367685291531478926728196534649523178285349617913752486476812359"],
+         expert: ["483921657967345821251876493548132976729564138136798245372689514814253769695417382"]
+      };
+
+      function createEmptyBoard() {
+         boardElement.innerHTML = "";
+         for (let i = 0; i < 81; i++) {
+            let cell = document.createElement("div");
+            cell.classList.add("cell");
+
+            let input = document.createElement("input");
+            input.type = "text";
+            input.maxLength = 1;
+            input.addEventListener("input", (e) => handleInput(e, i));
+
+            cell.appendChild(input);
+            boardElement.appendChild(cell);
+         }
+      }
+
+      function loadPuzzle(difficulty, puzzleIndex = 0) {
+         let puzzle = puzzles[difficulty][puzzleIndex];
+         solutionBoard = solutions[difficulty][puzzleIndex].split("");
+
+         let cells = boardElement.querySelectorAll(".cell input");
+
+         puzzle.split("").forEach((num, i) => {
+            if (num !== ".") {
+               cells[i].value = num;
+               cells[i].disabled = true;
+               cells[i].classList.add("prefilled");
+            } else {
+               cells[i].value = "";
+               cells[i].disabled = false;
+               cells[i].classList.remove("prefilled");
+               cells[i].style.background = "var(--cell-bg)";
+            }
+         });
+      }
+
+      function handleInput(e, index) {
+         let val = e.target.value;
+         if (!/^[1-9]$/.test(val)) { e.target.value = ""; return; }
+
+         if (val === solutionBoard[index]) {
+            e.target.style.background = "var(--correct)";
+            checkWin();
+         } else {
+            e.target.style.background = "var(--error)";
+            errorCounter++;
+            document.getElementById("errorCount").innerText = `Errors: ${errorCounter} / 3`;
+            if (errorCounter >= 3) {
+               alert("❌ Game Over! You reached the maximum errors.");
+               disableBoard();
+            }
+         }
+      }
+
+      function checkWin() {
+         let cells = boardElement.querySelectorAll(".cell input");
+         for (let i = 0; i < 81; i++) {
+            if (cells[i].value !== solutionBoard[i]) return;
+         }
+         showCelebration();
+      }
+
+      function disableBoard() {
+         let cells = boardElement.querySelectorAll(".cell input");
+         cells.forEach(cell => cell.disabled = true);
+      }
+
+      function newGame(difficulty) {
+         errorCounter = 0;
+         document.getElementById("errorCount").innerText = "Errors: 0 / 3";
+         createEmptyBoard();
+         loadPuzzle(difficulty);
+      }
+
+      function startSingleGame() {
+         journeyMode = false;
+         let difficulty = document.getElementById("difficulty").value;
+         newGame(difficulty);
+      }
+
+      function startJourney() {
+         journeyMode = true;
+         journeyLevel = "easy";
+         journeyProgress = 0;
+         newGame(journeyLevel);
+      }
+
+      function showCelebration() {
+         document.getElementById("celebration").style.display = "flex";
+      }
+
+      function nextGame() {
+         document.getElementById("celebration").style.display = "none";
+         if (journeyMode) {
+            journeyProgress++;
+            if (journeyProgress >= 5) {
+               if (journeyLevel === "easy") journeyLevel = "medium";
+               else if (journeyLevel === "medium") journeyLevel = "hard";
+               else if (journeyLevel === "hard") journeyLevel = "expert";
+               else {
+                  alert("🎉 You completed the full Journey!");
+                  journeyMode = false;
+                  return;
+               }
+               journeyProgress = 0;
+            }
+            newGame(journeyLevel);
+         } else {
+            startSingleGame();
+         }
+      }
+
+      function endJourney() {
+         document.getElementById("celebration").style.display = "none";
+         journeyMode = false;
+      }
+
+      function toggleDarkMode() {
+         document.body.classList.toggle("dark");
+         let btn = document.getElementById("toggleMode");
+         if (document.body.classList.contains("dark")) {
+            btn.innerText = "☀️ Light";
+         } else {
+            btn.innerText = "🌙 Dark";
+         }
+      }
+   </script>
+
+</body>
+
+</html>
